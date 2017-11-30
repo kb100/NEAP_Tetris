@@ -30,6 +30,7 @@ class Tetris:
         self.stepDelay = Tetris.DEFAULT_STEP_DELAY
         self.tetriminos = (Tetrimino_T, Tetrimino_O, Tetrimino_I, Tetrimino_J,
                 Tetrimino_L, Tetrimino_S, Tetrimino_Z)
+        self.numTetriminos = len(self.tetriminos)
         self.maxDimOfTetrimino = self.computeMaxDimOfTetrimino()
         self.newFallingPiece()
         self.EMPTY_ROW = np.zeros((1,Tetris.DEFAULT_COLS))
@@ -53,7 +54,7 @@ class Tetris:
     def step(self):
         if self.gameOver:
             return False
-        success = self.tryMoveDown()
+        success = self.fallingPiece.tryMoveDown()
         if not success:
             self.placeFallingPiece()
             self.deleteCompleteRows()
@@ -96,7 +97,7 @@ class Tetris:
         return self.fallingPiece.tryMoveRight()
 
     def tryMoveDown(self):
-        return self.fallingPiece.tryMoveDown()
+        return self.step()
 
     def tryRotateClockwise(self):
         return self.fallingPiece.tryRotateClockwise()
@@ -109,8 +110,11 @@ class Tetris:
 
     def boardAsArray(self):
         arr = np.minimum(self.ONES, self.board)
-        for r,c in self.fallingPiece:
-            arr[r,c] = 1
+        fp = self.fallingPiece
+        ar, ac = fp.anchor
+        dr, dc = fp.row-ar, fp.col-ac
+        for r,c in fp.mask:
+            arr[r+dr,c+dc] = 1
         return arr.ravel()
 
     def topFourNonemptyRowsAndShadowAsArray(self):
@@ -127,9 +131,7 @@ class Tetris:
         self.board = self.makeBoard(self.rows, self.cols)
 
     def newFallingPiece(self):
-        numTetriminos = len(self.tetriminos)
-
-        clazz = self.tetriminos[self.rng.randint(0, numTetriminos-1)]
+        clazz = self.tetriminos[self.rng.randint(0, self.numTetriminos-1)]
         self.fallingPiece = clazz(self,-self.maxDimOfTetrimino+1,self.cols//2-1)
         for i in range(self.rng.randint(0,3)):
             self.fallingPiece.rotateClockwise()
@@ -137,54 +139,39 @@ class Tetris:
             self.fallingPiece.moveDown()
     
     def placeFallingPiece(self):
-        for row, col in self.fallingPiece:
-            self.board[row][col] = self.fallingPiece.rep
+        fp = self.fallingPiece
+        ar, ac = fp.anchor
+        dr, dc = fp.row-ar, fp.col-ac
+        rep = fp.rep
+        for r,c in fp.mask:
+            self.board[r+dr][c+dc] = rep
 
     def dim(self):
         return self.rows, self.cols
 
 class Tetrimino:
+    color = "black"
+    shadowColor = "black"
+
     def __init__(self, game, row, col):
         self.row, self.col = row, col
         self.game = game
         self.moveTo(row, col)
-        self.color = "black"
-        self.shadowColor = "black"
-
-    def canRotateClockwise(self):
-        self.rotateClockwise()
-        result = self.fitsOnBoard()
-        self.rotateCounterClockwise()
-        return result
-    
-    def canRotateCounterClockwise(self):
-        self.rotateCounterClockwise()
-        result = self.fitsOnBoard()
-        self.rotateClockwise()
-        return result
+        self.mask = self.masks[0]
+        self.anchor = self.anchors[0]
+        self.maskIndex = 0
 
     def rotateCounterClockwise(self):
-        rows, cols = self.maskdim
-        self.mask = [(cols-c-1, r) for r,c in self.mask]
-        self.maskdim = (cols, rows)
-        self.anchor = (cols-self.anchor[1]-1, self.anchor[0]) 
+        self.maskIndex += 3
+        self.maskIndex %= 4
+        self.mask = self.masks[self.maskIndex]
+        self.anchor = self.anchors[self.maskIndex]
 
     def rotateClockwise(self):
-        rows, cols = self.maskdim
-        self.mask = [(c,rows-r-1) for r,c in self.mask]
-        self.maskdim = (cols, rows)
-        self.anchor = (self.anchor[1], rows-self.anchor[0]-1)
-
-    def canMoveTo(self, newRow, newCol):
-        row, col = self.row, self.col
-        self.moveTo(newRow, newCol)
-        result = self.fitsOnBoard()
-        self.moveTo(row, col)
-        return result
-    
-    def canMoveDown(self): return self.canMoveTo(self.row+1, self.col)
-    def canMoveLeft(self): return self.canMoveTo(self.row, self.col-1)
-    def canMoveRight(self): return self.canMoveTo(self.row, self.col+1)
+        self.maskIndex += 1
+        self.maskIndex %= 4
+        self.mask = self.masks[self.maskIndex]
+        self.anchor = self.anchors[self.maskIndex]
 
     def moveTo(self, row, col):
         self.row = row
@@ -224,10 +211,10 @@ class Tetrimino:
 
     def __iter__(self):
         ar, ac = self.anchor
-        r, c = self.row, self.col
-        mr, mc = self.maskdim
+        dr, dc = self.row-ar, self.col-ac
         for row, col in self.mask:
-            yield (r + row-ar, c + col-ac) 
+            #yield (self.row + row - self.anchor[0], self.col+col-self.anchor[1])
+            yield (dr+row, dc+col) 
     
     def shadow(self):
         originalRow, originalCol = self.row, self.col
@@ -253,87 +240,92 @@ class Tetrimino:
         game = self.game
         board = game.board
         rows, cols = game.dim()
-        for row, col in self:
-            if not (0 <= row < rows and 0 <= col < cols) \
-                or board[row][col] != 0:
+        ar, ac = self.anchor
+        dr, dc = self.row-ar, self.col-ac
+        for row, col in self.mask:
+            xr, xc = dr+row, dc+col
+            if not (0 <= xr < rows and 0 <= xc < cols) or board[xr][xc]:
                 return False
         return True
 
 class Tetrimino_I(Tetrimino):
-    def __init__(self, game, x, y):
-        Tetrimino.__init__(self, game, x, y)
-        self.mask = [(0,0), (0,1), (0,2), (0,3)]
-        self.maskdim = (1,4)
-        self.anchor = (0,1)
-        self.color = "red"
-        self.rep = 1
-
-    # Override
-    def rotateCounterClockwise(self):
-        self.rotateClockwise()
-
-    # Override    
-    def rotateClockwise(self):
-        if self.maskdim[0] == 1:
-            Tetrimino.rotateClockwise(self)
-        else:
-            Tetrimino.rotateCounterClockwise(self)
+    masks = [
+                [(0, 0), (0, 1), (0, 2), (0, 3)],
+                [(0, 0), (1, 0), (2, 0), (3, 0)],
+                [(0, 0), (0, 1), (0, 2), (0, 3)],
+                [(0, 0), (1, 0), (2, 0), (3, 0)]
+            ]
+    anchors = [(0, 1),(1, 0),(0, 1),(1, 0)]
+    color = "red"
+    rep = 1
 
 class Tetrimino_J(Tetrimino):
-    def __init__(self, game, x, y):
-        Tetrimino.__init__(self, game, x, y)
-        self.mask = [(0,0),(1,0),(1,1),(1,2)]
-        self.maskdim = (2,3)
-        self.anchor = (1,1)
-        self.color = "yellow"
-        self.rep = 2
+    masks = [
+                [(0, 0), (1, 0), (1, 1), (1, 2)],
+                [(0, 1), (0, 0), (1, 0), (2, 0)],
+                [(1, 2), (0, 2), (0, 1), (0, 0)],
+                [(2, 0), (2, 1), (1, 1), (0, 1)]
+            ]
+    anchors = [(1, 1),(1, 0),(0, 1),(1, 1)]
+    color = "yellow"
+    rep = 2
 
 class Tetrimino_L(Tetrimino):
-    def __init__(self, game, x, y):
-        Tetrimino.__init__(self, game, x, y)
-        self.mask = [(0,2),(1,0),(1,1),(1,2)]
-        self.maskdim = (2,3)
-        self.anchor = (1,1)
-        self.color = "magenta"
-        self.rep = 3
+    masks = [
+                [(0, 2), (1, 0), (1, 1), (1, 2)],
+                [(2, 1), (0, 0), (1, 0), (2, 0)],
+                [(1, 0), (0, 2), (0, 1), (0, 0)],
+                [(0, 0), (2, 1), (1, 1), (0, 1)]
+            ]
+    anchors = [(1, 1),(1, 0),(0, 1),(1, 1)]
+    color = "magenta"
+    rep = 3
 
 class Tetrimino_O(Tetrimino):
-    def __init__(self, game, x, y):
-        Tetrimino.__init__(self, game, x, y)
-        self.mask = [(0,0),(0,1),(1,0),(1,1)]
-        self.maskdim = (2,2)
-        self.anchor = (0,0)
-        self.color = "blue"
-        self.rep = 4
+    masks = [
+                [(0, 0), (0, 1), (1, 0), (1, 1)],
+                [(0, 0), (0, 1), (1, 0), (1, 1)],
+                [(0, 0), (0, 1), (1, 0), (1, 1)],
+                [(0, 0), (0, 1), (1, 0), (1, 1)]
+            ]
+    anchors = [(0, 0),(0, 0),(0, 0),(0, 0)]
+    color = "blue"
+    rep = 4
     
     # Overrides
     def rotateClockwise(self): pass
     def rotateCounterClockwise(self): pass
 
 class Tetrimino_S(Tetrimino):
-    def __init__(self, game, x, y):
-        Tetrimino.__init__(self, game, x, y)
-        self.mask = [(0,1),(0,2),(1,0),(1,1)]
-        self.maskdim = (2,3)
-        self.anchor = (1,1)
-        self.color = "cyan"
-        self.rep = 5
+    masks = [
+                [(0, 1), (0, 2), (1, 0), (1, 1)],
+                [(1, 1), (2, 1), (0, 0), (1, 0)],
+                [(1, 1), (1, 0), (0, 2), (0, 1)],
+                [(1, 0), (0, 0), (2, 1), (1, 1)]
+            ]
+    anchors = [(1, 1),(1, 0),(0, 1),(1, 1)]
+    color = "cyan"
+    rep = 5
 
 class Tetrimino_T(Tetrimino):
-    def __init__(self, game, x, y):
-        Tetrimino.__init__(self, game, x, y)
-        self.mask = [(0,1),(1,0),(1,1),(1,2)]
-        self.maskdim = (2,3)
-        self.anchor = (1,1)
-        self.color = "lime"
-        self.rep = 6
+    masks = [
+                [(0, 1), (1, 0), (1, 1), (1, 2)],
+                [(1, 1), (0, 0), (1, 0), (2, 0)],
+                [(1, 1), (0, 2), (0, 1), (0, 0)],
+                [(1, 0), (2, 1), (1, 1), (0, 1)]
+            ]
+    anchors = [(1, 1),(1, 0),(0, 1),(1, 1)]
+    color = "lime"
+    rep = 6
 
 class Tetrimino_Z(Tetrimino):
-    def __init__(self, game, x, y):
-        Tetrimino.__init__(self, game, x, y)
-        self.mask = [(0,0),(0,1),(1,1),(1,2)]
-        self.maskdim = (2,3)
-        self.anchor = (1,1)
-        self.color = "orange"
-        self.rep = 7
+    masks = [
+                [(0, 0), (0, 1), (1, 1), (1, 2)],
+                [(0, 1), (1, 1), (1, 0), (2, 0)],
+                [(1, 2), (1, 1), (0, 1), (0, 0)],
+                [(2, 0), (1, 0), (1, 1), (0, 1)]
+            ]
+    anchors = [(1, 1),(1, 0),(0, 1),(1, 1)]
+    color = "orange"
+    rep = 7
 
