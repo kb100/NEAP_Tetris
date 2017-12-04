@@ -34,9 +34,9 @@ class Breakout:
     def createBlocks(self):
         self.blocks = []
         y = 50
-        for __ in range(200 / 10):
+        for __ in range(int(200 / 10)):
             x = 50
-            for _ in range(800 / 25 - 6):
+            for _ in range(int(800 / 25 - 6)):
                 block = pygame.Rect(x, y, 25, 10)
                 self.blocks.append(block)
                 x += 27
@@ -60,7 +60,7 @@ class Breakout:
             if self.ball.y <= 0:
                 self.ball.y = 1
                 self.yDirection *= -1
-            
+
             for paddle in self.paddle:
                 if paddle[0].colliderect(self.ball):
                     self.angle = paddle[1]
@@ -80,7 +80,7 @@ class Breakout:
                 self.ball.x = self.paddle[1][0].x
                 self.ball.y = 490
                 self.yDirection = self.direction = -1
-                
+
     def paddleUpdate(self):
 
         pos = pygame.mouse.get_pos()
@@ -108,9 +108,7 @@ class Breakout:
             pygame.draw.rect(self.screen, (255,255,255), self.ball)
             self.screen.blit(self.font.render(str(self.score), -1, (255,255,255)), (400, 550))
             pygame.display.update()
-    
+
 
 if __name__ == "__main__":
     Breakout().main()
-
-
