@@ -6,31 +6,39 @@ from controller import Controller
 
 class AutomatedTetris():
 
+    FPS = 10
+
     def __init__(self, controller, initrandomstate=None, recordMoves=True):
         self.controller = controller
         self.tetris = Tetris(initrandomstate=initrandomstate)
         self.recordMoves = recordMoves
         self.moves = []
+        self.gameLength = 0
 
     def step(self):
         if self.tetris.gameOver:
             return False
-        m = self.controller.getMove(self.tetris.boardAsArray())
-        if self.recordMoves:
-            self.moves.append(m)
-        if m == Tetris.LEFT:
-            self.tetris.tryMoveLeft()
-        elif m == Tetris.RIGHT:
-            self.tetris.tryMoveRight()
-        elif m == Tetris.ROTATE:
-            self.tetris.tryRotateClockwise()
-        elif m == Tetris.DOWN:
-            self.tetris.tryMoveDown()
-        elif m == Tetris.DROP:
-            self.tetris.dropFallingPiece()
-        elif m == Tetris.NOP:
-            self.tetris.step()
-        return True
+        self.gameLength += 1
+        if self.gameLength % AutomatedTetris.FPS == 0:
+            return self.tetris.step()
+        else:
+            m = self.controller.getMove(self.tetris.boardAsArray())
+            #m = self.controller.getMove(self.tetris.topFourNonemptyRowsAndShadowAsArray())
+            if self.recordMoves:
+                self.moves.append(m)
+            if m == Tetris.LEFT:
+                self.tetris.tryMoveLeft()
+            elif m == Tetris.RIGHT:
+                self.tetris.tryMoveRight()
+            elif m == Tetris.ROTATE:
+                self.tetris.tryRotateClockwise()
+            elif m == Tetris.DOWN:
+                self.tetris.tryMoveDown()
+            elif m == Tetris.DROP:
+                self.tetris.dropFallingPiece()
+            elif m == Tetris.NOP:
+                pass
+            return True
 
     def score(self):
         return self.tetris.score
@@ -92,7 +100,7 @@ class AutomatedTetrisWindow(TetrisWindow):
         self.canvas.after(self.delay, self.stepMovie)
         
     def keyPressed(self, event):
-        print("key pressed with char", event.char, "keysym", event.keysym)
+        #print("key pressed with char", event.char, "keysym", event.keysym)
         if event.keysym == "p":
             self.game.togglePaused()
         elif self.game.gameOver or self.game.isPaused:

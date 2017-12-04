@@ -34,8 +34,10 @@ class TetrisWindow(Tk):
         boundingRatio = (y1-y0) / (x1-x0)
         if boundingRatio > desiredRatio:
             y1 = y0 + (x1-x0)*desiredRatio
+            y1 = int(y1)
         else:
             x1 = x0 + (y1-y0)/desiredRatio
+            x1 = int(x1)
         return (x0, y0, x1, y1)
 
     def getCellBoundingBox(self, row, col):
@@ -51,11 +53,14 @@ class TetrisWindow(Tk):
         board = self.game.board
         self.canvas.create_rectangle(x0, y0, x1, y1, fill=color)
 
+    def repToColor(self, rep, clist=["gray", "red", "yellow", "magenta", "blue", "cyan", "lime", "orange"]):
+        return clist[rep]
+
     def drawBoard(self):
         board = self.game.board
         for row in range(len(board)):
             for col in range(len(board[0])):
-                self.drawCell(row, col, board[row][col])
+                self.drawCell(row, col, self.repToColor(board[row][col]))
 
     def drawFallingPiece(self):
         for row, col in self.game.fallingPiece:
@@ -132,10 +137,11 @@ class TetrisWindow(Tk):
         self.canvas.after(delay, self.refreshTimerFired)
 
     def mousePressed(self, event):
-        print("mouse pressed at ", event.x, event.y)
+        pass
+        #print("mouse pressed at ", event.x, event.y)
 
     def keyPressed(self, event):
-        print("key pressed with char", event.char, "keysym", event.keysym)
+        #print("key pressed with char", event.char, "keysym", event.keysym)
         if event.keysym == 'r':
             self.game = Tetris(self.game.rows, self.game.cols)
         elif event.keysym == "p":
@@ -152,14 +158,6 @@ class TetrisWindow(Tk):
             self.game.tryRotateClockwise()
         elif event.keysym == "space":
             self.game.dropFallingPiece()
-        elif event.keysym == "equal":
-            self.game.setDim(self.game.rows+1, self.game.cols)
-        elif event.keysym == "minus":
-            self.game.setDim(self.game.rows-1, self.game.cols)
-        elif event.keysym == "plus":
-            self.game.setDim(self.game.rows, self.game.cols+1)
-        elif event.keysym == "underscore":
-            self.game.setDim(self.game.rows, self.game.cols-1)
         self.needToRedraw = True
 
 def main():
